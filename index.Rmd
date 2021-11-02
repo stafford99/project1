@@ -86,7 +86,11 @@ There were 149 countries in `happiness` and 93 countries in `medals`. The full j
 
 ###  Wrangling
 
+
+
 For the chunk of wrangling below, I realized that certain notable countries had been duplicated instead of merged in my `countries` data set because they weren't named exactly the same thing in each of the original data sets. Most notably the United States, Hong Kong, and China. This caused there to be two observations for each, one containing the information from `happiness` and the other containing the information from `medals`. I used mutate, str_replace_all, and select to create the cleaned up table `countriestab`. Here I have eliminated the duplicates. 
+
+
 
 ```{r}
 library(stringr)
@@ -107,6 +111,11 @@ countriestab
 ```
 
 
+
+In the chunk of wrangling below I set out to make a table with the averages of all the variables in `countries` grouped by region. I thought this would be interesting because it allows us to compare the relationship between variables. An interesting observation here is that average GDP, average happiness (or ladder score), and average life expectancy all seem to be correlated. That is, as GDP goes down so do happiness and life expectancy. This checks out logically, and gives some evidence to the fact that countries with higher GDPs seem to have relatively high values for other positive stats as well. 
+
+
+
 ```{R}
 averages <- countries %>%
   group_by(`Regional.indicator`) %>%
@@ -119,6 +128,11 @@ avgtab <- averages %>% gt %>%
 
 avgtab
 ```
+
+
+
+In the chunk of wrangling below, I created a table that shows the relationship between rankings of GDP and total medal counts. It is very interesting to see the comparison between the two variables. As supported by the averages table, it seems that overall when the GDP is higher the total medal count is more likely to be high. 
+
 
 
 ```{r}
@@ -134,6 +148,11 @@ ranktab
 ```
 
 
+
+In the chunk of wrangling below I thought it would be interesting to look at the proportion of gold medals out of the total medals. Here we can see that as the number of total medals go up, it becomes more and more difficult to keep a high proportion of gold medals. 
+
+
+
 ```{r}
 propgold <- countries %>% filter(`Gold.Medal` > 0)
 propgold <- propgold %>% mutate("Proportion Gold" = `Gold.Medal`/Total) %>%
@@ -146,6 +165,11 @@ proptab <- propgold %>% gt %>%
 
 proptab
 ```
+
+
+
+Finally, in this chunk of wrangling I had an idea to look at life expectancy compared to GDP. However, this time I wanted to look at it in terms of percentiles. This way I could see how the life expectancy changed according to what percentile a country was in. In order to get more detail, I pulled the mean, standard deviation, variation, minimum, and maximum life expectancies. Unfortunately, I could not get my if else statements to work properly, but I kept them in there so you could see my thought process. 
+
 
 
 ```{r}
@@ -189,7 +213,7 @@ plot2 <- ggplot(averages, aes(Regional.indicator, avg_GDP))+ geom_point(aes(size
 print(plot2 + ggtitle("The Relationship Between GDP and Total Medal Count"))
 ```
 
-Your discussion of plot 2
+This plot shows the relationship between GDP and total medal count. The results of this visualization are the most interesting and important to note for me. It is quite easy to see that the largest bubbles on the graph are towards the top. This tells us that the most of the countries with the highest total medal count, also have a relatively high GDP. This is evidence towards the fact that having a higher GDP can lead to greater success at the olympics. 
 
 ```{R}
 # your plot 3
