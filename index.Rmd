@@ -19,59 +19,174 @@ tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
 
 ## Data Wrangling, Exploration, Visualization
 
-### Name and EID here
+### Evelyn Stafford ebs797
 
 #### Introduction 
 
-Paragraph or two introducing your datasets and variables, why they are interesting to you, etc.
+The data sets I have chosen for this project I have named `happiness` and `medals`. I found them on a website called Kaggle. Happiness gives data for 2021 on countries. It lists variables like their ladder score (measure of happiness), GDP per Capita, and Life expectancy. Medals also gives data for 2021 on countries, but this one focuses on the Olympics. It shows how many of each medal type each country has won, their total, and their ranking based on the total. I am very excited to analyze these two data sets together because I find the relationship between their variables interesting. I'm intrigued by the question "How does the state of a country affect their performance". 
 
 ```{R}
-# read your datasets in here, e.g., with read_csv()
-
+# read your datasets in here, e.g.
+library(tidyr)
+library(dplyr)
+library(stringr)
+happiness <- read.csv("world-happiness-report-2021.csv")
+medals <- read.csv("Tokyo Medals 2021.csv")
 ```
 
-#### Tidying: Reshaping
+### Tidying: Reshaping
 
-If your datasets are tidy already, demonstrate that you can reshape data with pivot wider/longer here (e.g., untidy and then retidy). Alternatively, it may be easier to wait until the wrangling section so you can reshape your summary statistics. Note here if you are going to do this.
+Since my data sets were tidy already, I untidyed them and then made the following adjustments. First, I tidyed them again. Then, I kept only the variables I wanted to analyze. Finally, I renamed the ID variable in one of the data sets so that I could successfully join them. 
 
 ```{R}
 # your tidying code (if applicable; can also wait until wrangling section)
+
+# untidying medals 
+library(tidyr)
+medals <- medals %>% pivot_longer(2:5, names_to="Medal Type", values_to="Count")
+
+# tidying medals 
+medals <- spread(medals, "Medal Type", "Count")
+library(dplyr)
+medals <- rename(medals, "Rank by Total Medals" = "Rank.By.Total")
+
+# untidying happiness 
+happiness <- gather(happiness, "Information", "Result", 3:20)
+
+# tidying happiness and keeping only the columns I want
+happiness <- happiness %>% pivot_wider(names_from="Information",values_from="Result")
+happiness <- happiness %>% select(`Country.name`, `Regional.indicator`, `Ladder.score`, `Logged.GDP.per.capita`, `Healthy.life.expectancy`)
+happiness <- rename(happiness, "Country" = "Country.name")
+
 ```
 
-    
 #### Joining/Merging
 
 ```{R}
 # your joining code
 
-# your joining code
+countries <- full_join(happiness, medals, by="Country")
+
 ```
 
-Discussions of joining here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
+For this join I decided to do a full join. I wanted to see all of the countries no matter if they had a match or not. 
 
-####  Wrangling
+```{r}
+glimpse(happiness)
+length(unique(happiness$Country))
+glimpse(medals)
+length(unique(medals$Country))
+glimpse(countries)
+length(unique(countries$Country))
+glimpse(inner_join(happiness, medals, by="Country"))
+glimpse(anti_join(happiness, medals, by="Country"))
+```
+
+There were 149 countries in `happiness` and 93 countries in `medals`. The full join between the two has 168 countries. This tells me that there were 74 matches between the two data sets that got merged together. The anti join between the two has 75 countries. This tells me that there are 75 countries in the `countries` data set that have NAs for the variables of either the `happiness` data set or the `medals` data set since they don't match up. There are some issues with the merged data set that I address in the next code block! 
+
+###  Wrangling
+
+For the chunk of wrangling below, I realized that certain notable countries had been duplicated instead of merged in my `countries` data set because they weren't named exactly the same thing in each of the original data sets. Most notably the United States, Hong Kong, and China. This caused there to be two observations for each, one containing the information from `happiness` and the other containing the information from `medals`. I used mutate, str_replace_all, and select to create the cleaned up table `countriestab`. Here I have eliminated the duplicates. 
+
+```{r}
+library(stringr)
+dupes <- countries %>% mutate("New Country Name" = (str_replace_all(Country, 'United States of America', 'United States')))
+dupes <- dupes %>% mutate("Country Name" = (str_replace_all(`New Country Name`, "People's Republic of China", 'China')))
+dupes <- dupes %>% mutate("Country" = (str_replace_all(`Country Name`, "Hong Kong S.A.R. of China", 'Hong Kong, China'))) 
+dupes <- dupes[order(dupes$Country), ]
+dupes <- dupes %>% fill(2:10, .direction = "downup")
+countries <- dupes[-c(62, 28, 160), ] %>%
+  select(`Country`, `Regional.indicator`, `Ladder.score`, `Logged.GDP.per.capita`, `Healthy.life.expectancy`, `Rank by Total Medals`, `Gold.Medal`, `Silver.Medal`, `Bronze.Medal`, Total)
+
+library(gt)
+countriestab <- countries %>% gt %>%
+  tab_header(title=md("**Countries**"),
+             subtitle=md("A cleaner verson of `countries` to omit notable duplicates"))
+
+countriestab
+```
+
 
 ```{R}
-# your wrangling code
+averages <- countries %>%
+  group_by(`Regional.indicator`) %>%
+  summarise(distinc_countries = n_distinct(Country), avg_GDP = mean(`Logged.GDP.per.capita`), avg_ladder = mean(`Ladder.score`), avg_life_exp = mean(`Healthy.life.expectancy`), avg_gold = mean(`Gold.Medal`), avg_silver = mean(`Silver.Medal`), avg_bronze = mean(`Bronze.Medal`), avg_total = mean(Total))
+averages <- arrange(averages, desc(avg_GDP))
 
-# your wrangling code
+avgtab <- averages %>% gt %>%
+  tab_header(title=md("**Averages**"),
+             subtitle=md("A look at the averages of the `countries` variables"))
 
-# your wrangling code
+avgtab
 ```
 
-Your discussion of wrangling section here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
+
+```{r}
+rankings <- countries %>% mutate("Rank by GDP" = dense_rank(desc(`Logged.GDP.per.capita`)))
+rankings <- rankings %>% select(Country, `Regional.indicator`, `Rank by GDP`, `Rank by Total Medals`)
+rankings <- arrange(rankings, desc(-(`Rank by GDP`)))
+
+ranktab <- rankings %>% gt %>%
+  tab_header(title=md("**Rankings**"),
+             subtitle=md("A look at the relationship between rankings in my `countries`"))
+
+ranktab
+```
 
 
-#### Visualizing
+```{r}
+propgold <- countries %>% filter(`Gold.Medal` > 0)
+propgold <- propgold %>% mutate("Proportion Gold" = `Gold.Medal`/Total) %>%
+  select(Country, `Regional.indicator`, `Proportion Gold`, Total, `Rank by Total Medals`)
+propgold <- arrange(propgold, desc(`Proportion Gold`))
+
+proptab <- propgold %>% gt %>%
+  tab_header(title=md("**Proportion Gold Medals**"),
+             subtitle=md("A look at the relationship between the proportion of gold medals and the rank by total medals"))
+
+proptab
+```
+
+
+```{r}
+countries <- countries %>% mutate("Quantiles" = (if (`Logged.GDP.per.capita` <= 8.542) {
+"First"
+} else if (`Logged.GDP.per.capita` <= 9.585) {
+"Second"
+} else if (`Logged.GDP.per.capita` <= 10.421) {
+"Third"
+} else if (`Logged.GDP.per.capita` <= 11.647) {
+"Fourth"
+} else {
+  NA
+}))
+
+lifeexp <- countries %>%
+  group_by(`Quantiles`) %>%
+  summarise("Mean Life Expectancy" = mean(`Healthy.life.expectancy`), "Standard Deviation" = sd(`Healthy.life.expectancy`), "Variation" = var(`Healthy.life.expectancy`), "Minimum" = min(`Healthy.life.expectancy`), max(`Healthy.life.expectancy`))
+
+lifetab <- lifeexp %>% gt %>%
+  tab_header(title=md("**Life Expectancy**"),
+             subtitle=md("A look at the relationship between life expectancy and GDP in my `countries`"))
+
+lifetab
+```
+
+### Visualizing
 
 ```{R}
 # your plot 1
+library(ggplot2)
+plot1 <- ggplot(propgold, aes(Regional.indicator, `Proportion Gold`))+ geom_point(aes(size= Total, color= Regional.indicator))
+print(plot1 + ggtitle("Regions and Their Proportion of Gold Medals"))
 ```
 
-Your discussion of plot 1
+Here in plot 1 we are taking a look at the relationship between not only regions and their proportion of gold medals, but also the relationship between the proportion of gold medals and the number of total medals. It is really interesting to see here that across all regions, the only countries that have 100% gold medals have earned a very small amount of total medals. This makes sense logically because the more medals you win, the harder it gets to earn all gold. 
 
 ```{R}
 # your plot 2
+plot2 <- ggplot(averages, aes(Regional.indicator, avg_GDP))+ geom_point(aes(size= avg_total, color= Regional.indicator))
+print(plot2 + ggtitle("The Relationship Between GDP and Total Medal Count"))
 ```
 
 Your discussion of plot 2
